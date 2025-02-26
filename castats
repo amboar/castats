@@ -1,0 +1,25 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+set -eu
+set -x
+
+: "${CA_GRADE_ID:="7e354c9a-bec7-4ca3-97ce-b1878369c124"}"
+: "${CA_ORG_ID:="25bceba5-87d8-eb11-a7ad-2818780da0cc"}"
+
+# https://stackoverflow.com/questions/32960857/how-to-convert-arbitrary-simple-json-to-csv-using-jq
+CA_JQ_CSV="[ .[] | select(.organisation.id == \"${CA_ORG_ID}\") | { \"name\" : .name } * .statistics ] | (map(keys) | add | unique) as \$cols | (map(. as \$row | \$cols | map(\$row[.]))) as \$rows | \$cols, \$rows[] | @csv"
+
+CA_STAT_DATE=$(date +%F)
+
+for CA_STAT_CLASS in batting bowling fielding
+do
+	# Extracted by monitoring accessed network resources when reloading:
+	# https://play.cricket.com.au/grade/7e354c9a-bec7-4ca3-97ce-b1878369c124?tab=stats&category=bowling
+	CA_DATA_URL="https://grassrootsapiproxy.cricket.com.au/participants/grades/${CA_GRADE_ID}/${CA_STAT_CLASS}-statistics?jsconfig=eccn%3Atrue"
+	S=json/"${CA_STAT_DATE}"/"${CA_STAT_CLASS}".json
+	D=csv/"${CA_STAT_DATE}"/"${CA_STAT_CLASS}".csv
+	mkdir -p "$(dirname "$S")" "$(dirname "$D")"
+	curl --output "$S" "$CA_DATA_URL"
+	jq -r "$CA_JQ_CSV" "$S" > "$D"
+done
